@@ -674,6 +674,8 @@ int tls1_enc(SSL *s, SSL3_RECORD *recs, size_t n_recs, int send)
     const EVP_CIPHER *enc;
 
     if (send) {
+        fprintf(stderr, "send reached\n");
+	
         if (EVP_MD_CTX_md(s->write_hash)) {
             int n = EVP_MD_CTX_size(s->write_hash);
             OPENSSL_assert(n >= 0);
@@ -692,6 +694,7 @@ int tls1_enc(SSL *s, SSL3_RECORD *recs, size_t n_recs, int send)
                 ivlen = 0;
             if (ivlen > 1) {
                 for (ctr = 0; ctr < n_recs; ctr++) {
+		    
                     if (recs[ctr].data != recs[ctr].input) {
                         /*
                          * we can't write into the input stream: Can this ever
