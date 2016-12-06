@@ -11,6 +11,7 @@
 #include "internal/constant_time_locl.h"
 #include <openssl/rand.h>
 #include "record_locl.h"
+#include <steg-mq/lib-steg-mq.h>
 
 static const unsigned char ssl3_pad_1[48] = {
     0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36,
@@ -674,15 +675,15 @@ int tls1_enc(SSL *s, SSL3_RECORD *recs, size_t n_recs, int send)
     const EVP_CIPHER *enc;
 
     if (send) {
-        fprintf(stderr, "send reached\n");
 	
         if (EVP_MD_CTX_md(s->write_hash)) {
             int n = EVP_MD_CTX_size(s->write_hash);
             OPENSSL_assert(n >= 0);
         }
         ds = s->enc_write_ctx;
-        if (s->enc_write_ctx == NULL)
+        if (s->enc_write_ctx == NULL){
             enc = NULL;
+	}
         else {
             int ivlen;
             enc = EVP_CIPHER_CTX_cipher(s->enc_write_ctx);
@@ -690,19 +691,29 @@ int tls1_enc(SSL *s, SSL3_RECORD *recs, size_t n_recs, int send)
             if (SSL_USE_EXPLICIT_IV(s)
                 && EVP_CIPHER_mode(enc) == EVP_CIPH_CBC_MODE)
                 ivlen = EVP_CIPHER_iv_length(enc);
-            else
+            else{
                 ivlen = 0;
+	    }
             if (ivlen > 1) {
                 for (ctr = 0; ctr < n_recs; ctr++) {
-		    
-                    if (recs[ctr].data != recs[ctr].input) {
+                    
+		    if (recs[ctr].data != recs[ctr].input) {
                         /*
                          * we can't write into the input stream: Can this ever
                          * happen?? (steve)
                          */
                         SSLerr(SSL_F_TLS1_ENC, ERR_R_INTERNAL_ERROR);
                         return -1;
-                    } else if (RAND_bytes(recs[ctr].input, ivlen) <= 0) {
+                    } 
+
+		    // For now, only consult steg-mq when IV len == 16
+		    // (steg-mq only works for 16-byte, uniformly random 
+		    //  blocks)
+		    else if(ivlen == 16 &&
+			consume_stegotext(recs[ctr].input, 16) == 16){
+		        // In this case, a satisfactory stegotext was 
+			// found.  No action needed.
+		    } else if (RAND_bytes(recs[ctr].input, ivlen) <= 0) {
                         SSLerr(SSL_F_TLS1_ENC, ERR_R_INTERNAL_ERROR);
                         return -1;
                     }
